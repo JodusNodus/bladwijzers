@@ -1,4 +1,4 @@
-# teevee
+# bladwijzers
 A handy CLI tool to manage your bookmarks.
 
 ```bash
