@@ -19,6 +19,9 @@ require("colors");
 
 const { stdin, stdout } = process;
 
+const timeout = ms =>
+  new Promise((resolve, reject) => setTimeout(() => resolve(), ms));
+
 const output = {
   info: text => console.info(">".green, text.bold),
   err: text => console.error("x".red, text.bold),
@@ -81,12 +84,31 @@ async function createItem(meta, collection) {
 }
 
 async function fetchItemMeta(url) {
-  const { body: html } = await got(url, { throwHttpErrors: false });
-  const meta = await metascraper({ html, url });
+  const resp = await Promise.race([
+    got(url, { throwHttpErrors: false }),
+    timeout(5000)
+  ]);
+  if (!resp) {
+    return { url };
+  }
+  const meta = await metascraper({ html: resp.body, url });
   return { url, ...meta };
 }
 
+async function inputUrl() {
+  const { url } = await output.prompt({
+    type: "input",
+    name: "url",
+    message: "Enter your url",
+    validate: val => val.length > 0
+  });
+  return url;
+}
+
 async function addCommand(url) {
+  if (!url) {
+    url = await inputUrl();
+  }
   if (!validUrl.isUri(url)) {
     return output.err("The provided url is not valid");
   }
@@ -112,16 +134,20 @@ async function addCommand(url) {
   output.info("Following item has been added!");
 }
 
-async function selectCollection(createNew=false) {
+async function selectCollection(createNew = false) {
   let currentInput = "";
   const createCollectionStr = "create collection: ";
   const answers = await output.prompt({
     type: "autocomplete",
     name: "collection",
     message: "Choose a new/existing collection",
-    suggestOnly: true,
+    suggestOnly: false,
     validate: val => {
-      return val.length > 0 && (val.startsWith(createCollectionStr) || store.getCollections().indexOf(val) > -1)
+      return (
+        val.length > 0 &&
+        (val.startsWith(createCollectionStr) ||
+          store.getCollections().indexOf(val) > -1)
+      );
     },
     source: (answers, input) => {
       currentInput = input || "";
@@ -176,7 +202,7 @@ async function openCommand() {
 async function listCommand() {
   const collections = {};
   for (const item of store.getItems()) {
-    const title = _.truncate(item.title, {length: 40}).green;
+    const title = _.truncate(item.title, { length: 40 }).green;
     const url = (new URL(item.url).hostname + "/…").blue;
 
     collections[item.collection] = Object.assign(
@@ -192,8 +218,8 @@ async function listCommand() {
 program.description("CLI bookmark organizer");
 
 program
-  .command("add <url>")
-  .description("Add a new bookmark")
+  .command("add [url]")
+  .description("Add a new bookmark, you can the url here or we'll ask for it")
   .action(addCommand);
 
 program
@@ -208,7 +234,7 @@ program
 
 program
   .command("list")
-  .description("List all bookmarks")
+  .description("Show a tree of all collections and bookmarks")
   .action(listCommand);
 
 program.parse(process.argv);
