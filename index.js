@@ -49,7 +49,7 @@ const store = {
     this.saveItems(items);
   },
   removeItem(item) {
-    const items = this.getItems().filter(x => x.url === item.url);
+    const items = this.getItems().filter(x => x.url !== item.url);
     this.saveItems(items);
   },
   getItems() {
@@ -75,11 +75,15 @@ const store = {
   }
 };
 
-async function createItem(url, collection) {
+async function createItem(meta, collection) {
+  const hash = hashUrl(meta.url);
+  return { hash, collection, ...meta };
+}
+
+async function fetchItemMeta(url) {
   const { body: html } = await got(url, { throwHttpErrors: false });
   const meta = await metascraper({ html, url });
-  const hash = hashUrl(url);
-  return { hash, url, collection, ...meta };
+  return { url, ...meta };
 }
 
 async function addCommand(url) {
@@ -92,10 +96,13 @@ async function addCommand(url) {
       `The provided url has already been added to ${existingItem.collection}`
     );
   }
-  const collection = await selectCollection(true);
+  const [collection, meta] = await Promise.all([
+    selectCollection(true),
+    fetchItemMeta(url)
+  ]);
 
   const spnr = output.spinner("Fetching metadata");
-  const item = await createItem(url, collection);
+  const item = await createItem(meta, collection);
   spnr.stop();
 
   item.title = await inputTitle(item.title);
@@ -105,7 +112,7 @@ async function addCommand(url) {
   output.info("Following item has been added!");
 }
 
-async function selectCollection() {
+async function selectCollection(createNew=false) {
   let currentInput = "";
   const createCollectionStr = "create collection: ";
   const answers = await output.prompt({
@@ -113,11 +120,13 @@ async function selectCollection() {
     name: "collection",
     message: "Choose a new/existing collection",
     suggestOnly: true,
-    validate: val => val.length > 0,
+    validate: val => {
+      return val.length > 0 && (val.startsWith(createCollectionStr) || store.getCollections().indexOf(val) > -1)
+    },
     source: (answers, input) => {
       currentInput = input || "";
       const choices = store.fuzzySearchCollections(input);
-      if (currentInput.length) {
+      if (currentInput.length && createNew) {
         choices.push(createCollectionStr + currentInput);
       }
       return Promise.resolve(choices);
