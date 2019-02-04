@@ -5,7 +5,7 @@
   "main": "index.js",
   "preferGlobal": true,
   "bin": {
-    "teevee": "./index.js"
+    "bladwijzers": "./index.js"
   },
   "scripts": {},
   "author": "",
