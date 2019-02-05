@@ -140,7 +140,7 @@ async function selectCollection(createNew = false) {
   const answers = await output.prompt({
     type: "autocomplete",
     name: "collection",
-    message: "Choose a new/existing collection",
+    message: `Choose a${createNew ? " new or" : "n"} existing collection`,
     suggestOnly: false,
     validate: val => {
       return (
@@ -196,7 +196,7 @@ async function removeCommand() {
 async function openCommand() {
   const collection = await selectCollection();
   const item = await selectItem(collection);
-  await opn(item.url);
+  await opn(item.url, { wait: false });
 }
 
 async function listCommand() {
